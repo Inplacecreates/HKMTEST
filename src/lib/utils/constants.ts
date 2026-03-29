@@ -80,6 +80,7 @@ export const PROJECT_STATUS_COLORS: Record<ProjectStatus, string> = {
 export const PO_STATUS_LABELS: Record<POStatus, string> = {
   CREATED: "Created",
   SENT: "Sent to Supplier",
+  IN_TRANSIT: "In Transit",
   PARTIALLY_COLLECTED: "Partially Collected",
   COLLECTED: "Collected",
   CANCELLED: "Cancelled",

@@ -17,6 +17,7 @@ import {
   Settings,
   Building2,
   X,
+  BookMarked,
 } from "lucide-react";
 import type { UserRole } from "@/generated/prisma";
 import { hasAnyPermission } from "@/lib/auth/permissions";
@@ -39,6 +40,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Finance", href: "/finance", icon: DollarSign, requiredPermissions: ["budgets:read"] },
   { label: "Inventory", href: "/inventory", icon: Package, requiredPermissions: ["inventory:read"] },
   { label: "Reports", href: "/reports", icon: BarChart3, requiredPermissions: ["reports:read"] },
+  { label: "Catalog", href: "/settings/catalog", icon: BookMarked, requiredPermissions: ["settings:manage"] },
   { label: "Team", href: "/settings/team", icon: Users, requiredPermissions: ["users:read"] },
   { label: "Settings", href: "/settings", icon: Settings, requiredPermissions: ["settings:manage"] },
 ];

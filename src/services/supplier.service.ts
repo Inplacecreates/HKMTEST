@@ -72,8 +72,11 @@ export class SupplierService {
       phone?: string;
       email?: string;
       address?: string;
+      town?: string;
       categories?: string[];
       paymentTerms?: string;
+      kraPin?: string;
+      notes?: string;
       rating?: number;
       isActive?: boolean;
     };

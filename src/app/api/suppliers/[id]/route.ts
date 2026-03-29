@@ -5,10 +5,11 @@ import "@/services/activity-log.service";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_request: Request, { params }: { params: { id: string } }) {
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requirePermission("suppliers:read");
-    const supplier = await SupplierService.getById(user.tenantId, params.id);
+    const { id } = await params;
+    const supplier = await SupplierService.getById(user.tenantId, id);
     if (!supplier) {
       return NextResponse.json({ error: "Supplier not found" }, { status: 404 });
     }
@@ -21,15 +22,16 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   }
 }
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requirePermission("suppliers:manage");
+    const { id } = await params;
     const body = await request.json();
 
     const supplier = await SupplierService.update({
       tenantId: user.tenantId,
       userId: user.id,
-      supplierId: params.id,
+      supplierId: id,
       data: body,
     });
 
