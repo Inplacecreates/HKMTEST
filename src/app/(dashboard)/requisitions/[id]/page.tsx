@@ -145,7 +145,10 @@ export default function RequisitionDetailPage() {
           requisitionId={req.id}
           currentStatus={status}
           userRole={user.role}
+          userApprovalLimit={Number((user as any).approvalLimit) || 50000}
+          requisitionTotal={Number(req.totalEstimated) || 0}
           onTransition={handleTransition}
+          onPOCreated={loadRequisition}
           isLoading={transitioning}
         />
       )}

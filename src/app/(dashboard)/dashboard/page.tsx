@@ -311,26 +311,28 @@ export default function DashboardPage() {
               value={String(stats?.kpis?.activeProjects ?? activeProjects)}
               icon={FolderKanban}
               subtitle="Across all sites"
+              href="/projects"
             />
             <StatCard
               title="Requisitions"
               value={String(stats?.kpis?.totalReqs ?? openReqs)}
               icon={ClipboardList}
               subtitle="In selected period"
+              href="/requisitions"
             />
             <StatCard
               title="Pending Approvals"
               value={String(stats?.kpis?.pendingApprovals ?? pendingApprovals)}
               icon={Clock}
-              subtitle={
-                role === "CEO" ? "Needs your approval" : "With CEO"
-              }
+              subtitle={role === "CEO" ? "Needs your approval" : "With CEO"}
+              href="/requisitions?status=PENDING_APPROVAL"
             />
             <StatCard
               title="Total Spend"
               value={formatKES(totalSpend || 0)}
               icon={DollarSign}
               subtitle="In selected period"
+              href="/finance"
             />
           </div>
 
@@ -587,18 +589,21 @@ export default function DashboardPage() {
               value={String(stats?.kpis?.activeProjects ?? activeProjects)}
               icon={FolderKanban}
               subtitle="In progress"
+              href="/projects"
             />
             <StatCard
               title="Requisitions"
               value={String(stats?.kpis?.totalReqs ?? openReqs)}
               icon={ClipboardList}
               subtitle="In selected period"
+              href="/requisitions"
             />
             <StatCard
               title="Total Spend"
               value={formatKES(totalSpend)}
               icon={AlertTriangle}
               subtitle="In selected period"
+              href="/finance"
             />
           </div>
 
@@ -712,21 +717,23 @@ export default function DashboardPage() {
               value={String(stats?.kpis?.totalReqs ?? requisitions.length)}
               icon={ClipboardList}
               subtitle="In selected period"
+              href="/requisitions"
             />
             <StatCard
               title="Active"
               value={String(openReqs)}
               icon={Clock}
               subtitle="In progress"
+              href="/requisitions"
             />
             <StatCard
               title="Pending Deliveries"
               value={String(
-                requisitions.filter((r: any) => r.status === "DISPATCHED")
-                  .length
+                requisitions.filter((r: any) => r.status === "DISPATCHED").length
               )}
               icon={Truck}
               subtitle="En route"
+              href="/requisitions?status=DISPATCHED"
             />
             <StatCard
               title="To Verify"
@@ -735,6 +742,7 @@ export default function DashboardPage() {
               )}
               icon={CheckCircle2}
               subtitle="Awaiting check"
+              href="/requisitions?status=DELIVERED"
             />
           </div>
 

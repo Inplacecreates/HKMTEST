@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatKES, formatDate } from "@/lib/utils/format";
 import type { UserRole } from "@/generated/prisma";
-import { ArrowLeft, Truck, Package, Phone, MapPin } from "lucide-react";
+import { ArrowLeft, Truck, Package, Phone, MapPin, Printer } from "lucide-react";
 
 interface UserInfo {
   id: string;
@@ -90,7 +90,7 @@ export default function PurchaseOrderDetailPage() {
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 flex-wrap print:hidden">
         <div className="flex items-center gap-3">
           <Link href={isDriver ? "/logistics" : "/purchase-orders"}>
             <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4" /></Button>
@@ -107,6 +107,18 @@ export default function PurchaseOrderDetailPage() {
             </p>
           </div>
         </div>
+        <Button variant="outline" size="sm" onClick={() => window.print()}>
+          <Printer className="mr-2 h-4 w-4" />Print PO
+        </Button>
+      </div>
+
+      {/* Print header — only visible on print */}
+      <div className="hidden print:block mb-6">
+        <h1 className="text-2xl font-bold">Purchase Order</h1>
+        <p className="font-mono text-lg">{po.poNumber}</p>
+        <p className="text-sm text-gray-600">
+          {po.requisition?.project?.name} · {po.requisition?.requisitionNumber}
+        </p>
       </div>
 
       {error && (
@@ -215,7 +227,7 @@ export default function PurchaseOrderDetailPage() {
                   <dd>{formatDate(new Date(po.collectionDate))}</dd>
                 </div>
               )}
-              {po.totalAmount !== undefined && (
+              {!isDriver && po.totalAmount !== undefined && (
                 <div className="flex justify-between">
                   <dt className="text-gray-500">Total</dt>
                   <dd className="font-bold text-lg">{formatKES(Number(po.totalAmount))}</dd>
@@ -239,7 +251,7 @@ export default function PurchaseOrderDetailPage() {
                   <th className="px-3 py-2 font-medium text-gray-600">Item</th>
                   <th className="px-3 py-2 font-medium text-gray-600">Unit</th>
                   <th className="px-3 py-2 font-medium text-gray-600 text-right">Qty</th>
-                  {po.totalAmount !== undefined && (
+                  {!isDriver && po.totalAmount !== undefined && (
                     <>
                       <th className="px-3 py-2 font-medium text-gray-600 text-right">Price</th>
                       <th className="px-3 py-2 font-medium text-gray-600 text-right">Total</th>
@@ -258,7 +270,7 @@ export default function PurchaseOrderDetailPage() {
                     </td>
                     <td className="px-3 py-2 text-gray-600">{item.requisitionItem?.unit || "-"}</td>
                     <td className="px-3 py-2 text-right">{Number(item.qtyOrdered)}</td>
-                    {item.unitPrice !== undefined && (
+                    {!isDriver && item.unitPrice !== undefined && (
                       <>
                         <td className="px-3 py-2 text-right">{formatKES(Number(item.unitPrice))}</td>
                         <td className="px-3 py-2 text-right font-medium">

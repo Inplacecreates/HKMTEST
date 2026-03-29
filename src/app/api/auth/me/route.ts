@@ -14,5 +14,6 @@ export async function GET() {
     fullName: user.fullName,
     role: user.role,
     email: user.email,
+    approvalLimit: user.approvalLimit,
   });
 }

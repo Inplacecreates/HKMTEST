@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,13 +12,16 @@ import { PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS } from "@/lib/utils/consta
 import { formatKES, formatDate } from "@/lib/utils/format";
 import {
   ArrowLeft, MapPin, Phone, Mail, Plus,
-  FileText, AlertTriangle,
+  FileText, AlertTriangle, Archive, Trash2,
 } from "lucide-react";
 
 export default function ProjectDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const [project, setProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [actioning, setActioning] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     fetch(`/api/projects/${params.projectId}`)
@@ -39,6 +42,35 @@ export default function ProjectDetailPage() {
     );
   }
 
+  const handleArchive = async () => {
+    setActioning(true);
+    try {
+      const res = await fetch(`/api/projects/${params.projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "ARCHIVED" }),
+      });
+      if (res.ok) router.push("/projects");
+    } finally {
+      setActioning(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setActioning(true);
+    try {
+      const res = await fetch(`/api/projects/${params.projectId}`, { method: "DELETE" });
+      if (res.ok) router.push("/projects");
+      else {
+        const data = await res.json();
+        alert(data.error || "Cannot delete project");
+      }
+    } finally {
+      setActioning(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
   if (!project) {
     return (
       <EmptyState
@@ -53,7 +85,7 @@ export default function ProjectDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Link href="/projects">
             <Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
@@ -68,6 +100,40 @@ export default function ProjectDetailPage() {
             <p className="text-muted-foreground">Code: {project.code} | Client: {project.clientName}</p>
           </div>
         </div>
+        {project.status !== "ARCHIVED" && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleArchive}
+              disabled={actioning}
+            >
+              <Archive className="mr-1.5 h-4 w-4" />
+              Archive
+            </Button>
+            {!showDeleteConfirm ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-red-300 text-red-600 hover:bg-red-50"
+                onClick={() => setShowDeleteConfirm(true)}
+              >
+                <Trash2 className="mr-1.5 h-4 w-4" />
+                Delete
+              </Button>
+            ) : (
+              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5">
+                <span className="text-xs text-red-700">Delete permanently?</span>
+                <Button size="sm" variant="destructive" onClick={handleDelete} disabled={actioning}>
+                  Confirm
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setShowDeleteConfirm(false)}>
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Info cards */}
@@ -161,7 +227,7 @@ export default function ProjectDetailPage() {
 
       {/* Quick links */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Link href={`/projects/${project.id}/budget`}>
+        <Link href={`/finance?projectId=${project.id}`}>
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
             <CardContent className="flex items-center gap-3 p-4">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100">

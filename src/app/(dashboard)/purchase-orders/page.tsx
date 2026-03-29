@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatKES, formatDate } from "@/lib/utils/format";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, Printer } from "lucide-react";
+const isDriver = (role: string) => role === "DRIVER" || role === "CO_DRIVER";
 
 const PO_STATUS_COLORS: Record<string, string> = {
   CREATED: "bg-gray-100 text-gray-700",
@@ -30,6 +31,14 @@ export default function PurchaseOrdersPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
+  const [userRole, setUserRole] = useState<string>("");
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => setUserRole(d.role || ""))
+      .catch(() => {});
+  }, []);
 
   const loadPOs = useCallback(async () => {
     setLoading(true);
@@ -97,12 +106,12 @@ export default function PurchaseOrdersPage() {
                       {po.requisition?.requisitionNumber} &middot; {po._count?.items || 0} items
                     </p>
                   </div>
-                  <div className="text-right">
-                    {po.totalAmount !== undefined && (
+                  <div className="text-right flex flex-col items-end gap-1">
+                    {!isDriver(userRole) && po.totalAmount !== undefined && (
                       <p className="font-semibold">{formatKES(Number(po.totalAmount))}</p>
                     )}
                     {po.driver && (
-                      <p className="text-xs text-gray-500 mt-1">Driver: {po.driver.fullName}</p>
+                      <p className="text-xs text-gray-500">Driver: {po.driver.fullName}</p>
                     )}
                     {po.collectionDate && (
                       <p className="text-xs text-gray-500">{formatDate(new Date(po.collectionDate))}</p>
