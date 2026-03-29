@@ -35,6 +35,10 @@ model Tenant {
   notifications  Notification[]
   activityLogs   ActivityLog[]
   snagItems      SnagItem[]
+  deliveryTrips  DeliveryTrip[]
+  toolAssets     ToolAsset[]
+  toolMovements  ToolMovement[]
+  appSettings    AppSettings?
 
   @@map("tenants")
 }
@@ -77,6 +81,9 @@ model User {
   reportedSnagItems    SnagItem[]            @relation("SnagReporter")
   assignedSnagItems    SnagItem[]            @relation("SnagAssignee")
   verifiedSnagItems    SnagItem[]            @relation("SnagVerifier")
+  driverTrips          DeliveryTrip[]        @relation("TripDriver")
+  coDriverTrips        DeliveryTrip[]        @relation("TripCoDriver")
+  checkedOutTools      ToolMovement[]        @relation("ToolChecker")
 
   @@unique([tenantId, email])
   @@index([tenantId, role])
@@ -111,7 +118,9 @@ model Project {
   status                  ProjectStatus @default(PLANNING)
   startDate               DateTime?     @map("start_date") @db.Date
   targetEndDate           DateTime?     @map("target_end_date") @db.Date
+  expectedEndDate         DateTime?     @map("expected_end_date") @db.Date
   totalBudget             Decimal       @default(0) @map("total_budget") @db.Decimal(14, 2)
+  contractValue           Decimal?      @map("contract_value") @db.Decimal(14, 2)
   allocatedBudget         Decimal       @default(0) @map("allocated_budget") @db.Decimal(14, 2)
   companyWalletAllocation Decimal       @default(0) @map("company_wallet_allocation") @db.Decimal(14, 2)
   createdBy               String        @map("created_by") @db.Uuid
@@ -126,6 +135,7 @@ model Project {
   clientPayments ClientPayment[]
   documents      Document[]
   snagItems      SnagItem[]
+  toolMovements  ToolMovement[]
 
   @@unique([tenantId, code])
   @@index([tenantId, status])
@@ -158,6 +168,7 @@ model Site {
   requisitions Requisition[]
   inventory    Inventory[]
   snagItems    SnagItem[]
+  toolMovements ToolMovement[]
 
   @@index([tenantId, projectId])
   @@map("sites")
@@ -319,6 +330,7 @@ model PurchaseOrder {
   items           PurchaseOrderItem[]
   verifications   DeliveryVerification[]
   documents       Document[]    @relation("PODocuments")
+  deliveryTrips   DeliveryTrip[]
 
   @@index([tenantId, status])
   @@index([assignedDriver])
@@ -328,6 +340,7 @@ model PurchaseOrder {
 enum POStatus {
   CREATED
   SENT
+  IN_TRANSIT
   PARTIALLY_COLLECTED
   COLLECTED
   CANCELLED
@@ -431,9 +444,12 @@ model Supplier {
   phone           String?
   email           String?
   address         String?
+  town            String?
   categories      String[] @default([])
   rating          Decimal? @db.Decimal(2, 1)
   paymentTerms    String?  @map("payment_terms")
+  kraPin          String?  @map("kra_pin")
+  notes           String?
   isActive        Boolean  @default(true) @map("is_active")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
@@ -473,13 +489,16 @@ model ItemCatalog {
   description   String?
   defaultUnit   String   @map("default_unit")
   category      String
+  sku           String?
   averagePrice  Decimal? @map("average_price") @db.Decimal(12, 2)
+  isActive      Boolean  @default(true) @map("is_active")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   tenant        Tenant            @relation(fields: [tenantId], references: [id])
   requisitionItems RequisitionItem[]
 
+  @@unique([tenantId, name])
   @@index([tenantId, category])
   @@map("item_catalog")
 }
@@ -504,14 +523,17 @@ model ProjectBudget {
 }
 
 model ClientPayment {
-  id          String   @id @default(uuid()) @db.Uuid
-  projectId   String   @map("project_id") @db.Uuid
-  amount      Decimal  @db.Decimal(14, 2)
-  paymentDate DateTime @map("payment_date") @db.Date
-  reference   String?
-  notes       String?
-  recordedBy  String   @map("recorded_by") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at")
+  id              String   @id @default(uuid()) @db.Uuid
+  projectId       String   @map("project_id") @db.Uuid
+  tenantId        String?  @map("tenant_id") @db.Uuid
+  amount          Decimal  @db.Decimal(14, 2)
+  paymentDate     DateTime @map("payment_date") @db.Date
+  paymentMethod   String?  @map("payment_method")
+  reference       String?
+  referenceNumber String?  @map("reference_number")
+  notes           String?
+  recordedBy      String   @map("recorded_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at")
 
   project     Project  @relation(fields: [projectId], references: [id])
   recorder    User     @relation("PaymentRecorder", fields: [recordedBy], references: [id])
@@ -551,6 +573,7 @@ model InventoryMovement {
   quantity      Decimal      @db.Decimal(10, 2)
   referenceType String?      @map("reference_type")
   referenceId   String?      @map("reference_id") @db.Uuid
+  notes         String?
   recordedBy    String       @map("recorded_by") @db.Uuid
   createdAt     DateTime     @default(now()) @map("created_at")
 
@@ -695,4 +718,131 @@ enum SnagStatus {
   IN_PROGRESS
   FIXED
   VERIFIED
+}
+
+// ==========================================
+// Delivery Trips (Logistics)
+// ==========================================
+
+model DeliveryTrip {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  poId             String   @map("po_id") @db.Uuid
+  driverId         String   @map("driver_id") @db.Uuid
+  coDriverId       String?  @map("co_driver_id") @db.Uuid
+  vehicleReg       String   @map("vehicle_reg")
+  departureTime    DateTime @map("departure_time")
+  estimatedArrival DateTime? @map("estimated_arrival")
+  notes            String?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  tenant           Tenant        @relation(fields: [tenantId], references: [id])
+  purchaseOrder    PurchaseOrder @relation(fields: [poId], references: [id])
+  driver           User          @relation("TripDriver", fields: [driverId], references: [id])
+  coDriverUser     User?         @relation("TripCoDriver", fields: [coDriverId], references: [id])
+
+  @@index([tenantId, poId])
+  @@map("delivery_trips")
+}
+
+// ==========================================
+// HKM Tools Store (Inventory Part B)
+// ==========================================
+
+enum ToolStatus {
+  AVAILABLE
+  CHECKED_OUT
+  IN_SERVICE
+  RETIRED
+}
+
+enum ToolCondition {
+  EXCELLENT
+  GOOD
+  FAIR
+  DAMAGED
+  NEEDS_SERVICE
+}
+
+model ToolAsset {
+  id            String        @id @default(uuid()) @db.Uuid
+  tenantId      String        @map("tenant_id") @db.Uuid
+  name          String
+  category      String
+  serialNumber  String?       @map("serial_number")
+  assetNumber   String?       @map("asset_number")
+  purchaseDate  DateTime?     @map("purchase_date") @db.Date
+  purchasePrice Decimal?      @map("purchase_price") @db.Decimal(14, 2)
+  condition     ToolCondition @default(GOOD)
+  status        ToolStatus    @default(AVAILABLE)
+  notes         String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  movements     ToolMovement[]
+
+  @@index([tenantId, status])
+  @@map("tool_assets")
+}
+
+model ToolMovement {
+  id             String        @id @default(uuid()) @db.Uuid
+  tenantId       String        @map("tenant_id") @db.Uuid
+  toolId         String        @map("tool_id") @db.Uuid
+  movementType   String        @map("movement_type")
+  projectId      String?       @map("project_id") @db.Uuid
+  siteId         String?       @map("site_id") @db.Uuid
+  checkedOutBy   String?       @map("checked_out_by") @db.Uuid
+  expectedReturn DateTime?     @map("expected_return") @db.Date
+  returnedAt     DateTime?     @map("returned_at")
+  conditionOut   ToolCondition? @map("condition_out")
+  conditionIn    ToolCondition? @map("condition_in")
+  damageNotes    String?       @map("damage_notes")
+  serviceNotes   String?       @map("service_notes")
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  tenant         Tenant     @relation(fields: [tenantId], references: [id])
+  tool           ToolAsset  @relation(fields: [toolId], references: [id])
+  project        Project?   @relation(fields: [projectId], references: [id])
+  site           Site?      @relation(fields: [siteId], references: [id])
+  checkedOutUser User?      @relation("ToolChecker", fields: [checkedOutBy], references: [id])
+
+  @@index([tenantId, toolId])
+  @@map("tool_movements")
+}
+
+// ==========================================
+// Application Settings
+// ==========================================
+
+model AppSettings {
+  id                    String   @id @default(uuid()) @db.Uuid
+  tenantId              String   @unique @map("tenant_id") @db.Uuid
+  companyName           String?  @map("company_name")
+  tradingName           String?  @map("trading_name")
+  kraPin                String?  @map("kra_pin")
+  vatNumber             String?  @map("vat_number")
+  logoUrl               String?  @map("logo_url")
+  phone                 String?
+  email                 String?
+  website               String?
+  address               String?
+  postalAddress         String?  @map("postal_address")
+  defaultCurrency       String   @default("KES") @map("default_currency")
+  dateFormat            String   @default("DD/MM/YYYY") @map("date_format")
+  fiscalYearStartMonth  Int      @default(1) @map("fiscal_year_start_month")
+  defaultPaymentTerms   String   @default("Net 30") @map("default_payment_terms")
+  emailOnReqStatus      Boolean  @default(true) @map("email_on_req_status")
+  emailOnBudgetAlert    Boolean  @default(true) @map("email_on_budget_alert")
+  emailOnDelivery       Boolean  @default(true) @map("email_on_delivery")
+  inAppNotifications    Boolean  @default(true) @map("in_app_notifications")
+  whatsappNumber        String?  @map("whatsapp_number")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  tenant                Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@map("app_settings")
 }

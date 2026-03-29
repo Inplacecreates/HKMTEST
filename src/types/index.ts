@@ -68,6 +68,7 @@ export enum FundingSource {
 export enum POStatus {
   CREATED = "CREATED",
   SENT = "SENT",
+  IN_TRANSIT = "IN_TRANSIT",
   PARTIALLY_COLLECTED = "PARTIALLY_COLLECTED",
   COLLECTED = "COLLECTED",
   CANCELLED = "CANCELLED",
