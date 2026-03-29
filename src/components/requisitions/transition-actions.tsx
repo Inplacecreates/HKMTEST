@@ -246,11 +246,14 @@ export function TransitionActions({
   };
 
   // Separate primary (forward) from secondary (cancel, rework)
+  // PRICING is a rework target only when coming from VERIFICATION or BUDGET_CHECK
+  const isReworkToPricing = (t: { from: string; to: string }) =>
+    t.to === "PRICING" && t.from !== "SUBMITTED";
   const forwardTransitions = filteredTransitions.filter(
-    (t) => t.to !== "CANCELLED" && t.to !== "PRICING"
+    (t) => t.to !== "CANCELLED" && !isReworkToPricing(t)
   );
   const secondaryTransitions = filteredTransitions.filter(
-    (t) => t.to === "CANCELLED" || (t.to === "PRICING" && currentStatus !== "SUBMITTED")
+    (t) => t.to === "CANCELLED" || isReworkToPricing(t)
   );
 
   return (

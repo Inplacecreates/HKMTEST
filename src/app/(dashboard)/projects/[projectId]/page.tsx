@@ -12,7 +12,7 @@ import { PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS } from "@/lib/utils/consta
 import { formatKES, formatDate } from "@/lib/utils/format";
 import {
   ArrowLeft, MapPin, Phone, Mail, Plus,
-  FileText, AlertTriangle, Archive, Trash2,
+  FileText, AlertTriangle, Archive, Trash2, ArchiveRestore, X,
 } from "lucide-react";
 
 export default function ProjectDetailPage() {
@@ -22,14 +22,22 @@ export default function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [actioning, setActioning] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  // Sites
+  const [showAddSite, setShowAddSite] = useState(false);
+  const [newSiteName, setNewSiteName] = useState("");
+  const [newSiteAddress, setNewSiteAddress] = useState("");
+  const [addingSite, setAddingSite] = useState(false);
+  const [siteError, setSiteError] = useState("");
 
-  useEffect(() => {
+  const loadProject = () => {
     fetch(`/api/projects/${params.projectId}`)
       .then((r) => r.json())
       .then(setProject)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [params.projectId]);
+  };
+
+  useEffect(() => { loadProject(); }, [params.projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -53,6 +61,56 @@ export default function ProjectDetailPage() {
       if (res.ok) router.push("/projects");
     } finally {
       setActioning(false);
+    }
+  };
+
+  const handleUnarchive = async () => {
+    setActioning(true);
+    try {
+      const res = await fetch(`/api/projects/${params.projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "ACTIVE" }),
+      });
+      if (res.ok) loadProject();
+    } finally {
+      setActioning(false);
+    }
+  };
+
+  const handleAddSite = async () => {
+    if (!newSiteName.trim()) return;
+    setAddingSite(true);
+    setSiteError("");
+    try {
+      const res = await fetch(`/api/projects/${params.projectId}/sites`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newSiteName, address: newSiteAddress }),
+      });
+      if (res.ok) {
+        setNewSiteName("");
+        setNewSiteAddress("");
+        setShowAddSite(false);
+        loadProject();
+      } else {
+        const data = await res.json();
+        setSiteError(data.error || "Failed to add site");
+      }
+    } finally {
+      setAddingSite(false);
+    }
+  };
+
+  const handleDeleteSite = async (siteId: string) => {
+    if (!confirm("Remove this site?")) return;
+    const res = await fetch(`/api/projects/${params.projectId}/sites?siteId=${siteId}`, {
+      method: "DELETE",
+    });
+    if (res.ok) loadProject();
+    else {
+      const data = await res.json();
+      alert(data.error || "Cannot remove site");
     }
   };
 
@@ -100,40 +158,52 @@ export default function ProjectDetailPage() {
             <p className="text-muted-foreground">Code: {project.code} | Client: {project.clientName}</p>
           </div>
         </div>
-        {project.status !== "ARCHIVED" && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          {project.status === "ARCHIVED" ? (
             <Button
               variant="outline"
               size="sm"
-              onClick={handleArchive}
+              onClick={handleUnarchive}
               disabled={actioning}
             >
-              <Archive className="mr-1.5 h-4 w-4" />
-              Archive
+              <ArchiveRestore className="mr-1.5 h-4 w-4" />
+              Unarchive
             </Button>
-            {!showDeleteConfirm ? (
+          ) : (
+            <>
               <Button
                 variant="outline"
                 size="sm"
-                className="border-red-300 text-red-600 hover:bg-red-50"
-                onClick={() => setShowDeleteConfirm(true)}
+                onClick={handleArchive}
+                disabled={actioning}
               >
-                <Trash2 className="mr-1.5 h-4 w-4" />
-                Delete
+                <Archive className="mr-1.5 h-4 w-4" />
+                Archive
               </Button>
-            ) : (
-              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5">
-                <span className="text-xs text-red-700">Delete permanently?</span>
-                <Button size="sm" variant="destructive" onClick={handleDelete} disabled={actioning}>
-                  Confirm
+              {!showDeleteConfirm ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-red-300 text-red-600 hover:bg-red-50"
+                  onClick={() => setShowDeleteConfirm(true)}
+                >
+                  <Trash2 className="mr-1.5 h-4 w-4" />
+                  Delete
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => setShowDeleteConfirm(false)}>
-                  Cancel
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
+              ) : (
+                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5">
+                  <span className="text-xs text-red-700">Delete permanently?</span>
+                  <Button size="sm" variant="destructive" onClick={handleDelete} disabled={actioning}>
+                    Confirm
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowDeleteConfirm(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Info cards */}
@@ -197,13 +267,45 @@ export default function ProjectDetailPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Sites ({project.sites?.length ?? 0})</CardTitle>
-          <Button size="sm" variant="outline" disabled>
-            <Plus className="mr-1 h-3.5 w-3.5" />Add Site
-          </Button>
+          {!showAddSite && (
+            <Button size="sm" variant="outline" onClick={() => { setShowAddSite(true); setSiteError(""); }}>
+              <Plus className="mr-1 h-3.5 w-3.5" />Add Site
+            </Button>
+          )}
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          {showAddSite && (
+            <div className="rounded-lg border bg-gray-50 p-3 space-y-2">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <input
+                  autoFocus
+                  value={newSiteName}
+                  onChange={(e) => setNewSiteName(e.target.value)}
+                  placeholder="Site name *"
+                  className="rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onKeyDown={(e) => e.key === "Enter" && handleAddSite()}
+                />
+                <input
+                  value={newSiteAddress}
+                  onChange={(e) => setNewSiteAddress(e.target.value)}
+                  placeholder="Address (optional)"
+                  className="rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onKeyDown={(e) => e.key === "Enter" && handleAddSite()}
+                />
+              </div>
+              {siteError && <p className="text-xs text-red-600">{siteError}</p>}
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleAddSite} disabled={addingSite || !newSiteName.trim()}>
+                  {addingSite ? "Adding…" : "Add"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => { setShowAddSite(false); setNewSiteName(""); setNewSiteAddress(""); setSiteError(""); }}>
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
           {project.sites?.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {project.sites.map((site: any) => (
                 <div key={site.id} className="flex items-center justify-between rounded-lg border p-3">
                   <div>
@@ -213,14 +315,24 @@ export default function ProjectDetailPage() {
                       <p className="text-sm text-muted-foreground">Manager: {site.siteManager.fullName}</p>
                     )}
                   </div>
-                  <Badge variant={site.status === "ACTIVE" ? "default" : "secondary"}>
-                    {site.status}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={site.status === "ACTIVE" ? "default" : "secondary"}>
+                      {site.status}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-gray-400 hover:text-red-500"
+                      onClick={() => handleDeleteSite(site.id)}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No sites added yet.</p>
+            !showAddSite && <p className="text-sm text-muted-foreground">No sites added yet.</p>
           )}
         </CardContent>
       </Card>

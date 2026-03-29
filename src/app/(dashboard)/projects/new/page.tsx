@@ -6,13 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus, X } from "lucide-react";
 import Link from "next/link";
 
 export default function NewProjectPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [sites, setSites] = useState<{ name: string; address: string }[]>([]);
+  const [newSiteName, setNewSiteName] = useState("");
+  const [newSiteAddress, setNewSiteAddress] = useState("");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -47,6 +50,16 @@ export default function NewProjectPage() {
       }
 
       const project = await res.json();
+
+      // Create any sites added during project creation
+      for (const site of sites) {
+        await fetch(`/api/projects/${project.id}/sites`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(site),
+        });
+      }
+
       router.push(`/projects/${project.id}`);
     } catch {
       setError("An unexpected error occurred");
@@ -137,6 +150,63 @@ export default function NewProjectPage() {
                 <Input id="targetEndDate" name="targetEndDate" type="date" />
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="text-base">Sites <span className="text-sm font-normal text-muted-foreground">(optional)</span></CardTitle>
+            <CardDescription>Add construction sites for this project. You can also add them later.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {sites.length > 0 && (
+              <div className="space-y-2">
+                {sites.map((site, i) => (
+                  <div key={i} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
+                    <div>
+                      <span className="font-medium">{site.name}</span>
+                      {site.address && <span className="ml-2 text-muted-foreground">{site.address}</span>}
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 p-0 text-gray-400 hover:text-red-500"
+                      onClick={() => setSites((s) => s.filter((_, idx) => idx !== i))}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input
+                value={newSiteName}
+                onChange={(e) => setNewSiteName(e.target.value)}
+                placeholder="Site name"
+              />
+              <Input
+                value={newSiteAddress}
+                onChange={(e) => setNewSiteAddress(e.target.value)}
+                placeholder="Address (optional)"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!newSiteName.trim()}
+              onClick={() => {
+                if (!newSiteName.trim()) return;
+                setSites((s) => [...s, { name: newSiteName.trim(), address: newSiteAddress.trim() }]);
+                setNewSiteName("");
+                setNewSiteAddress("");
+              }}
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              Add Site
+            </Button>
           </CardContent>
         </Card>
 
