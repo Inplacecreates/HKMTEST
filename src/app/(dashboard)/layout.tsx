@@ -24,7 +24,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     async function loadUser() {
       try {
-        const res = await fetch("/api/auth/me");
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        const res = await fetch("/api/auth/me", { signal: controller.signal });
+        clearTimeout(timeout);
         if (res.ok) {
           const data = await res.json();
           setUser(data);
