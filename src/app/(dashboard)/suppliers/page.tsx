@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Plus, Building2, Phone, Mail, Star } from "lucide-react";
+import { Plus, Building2, Phone, Mail, Star, Hash } from "lucide-react";
 
 interface UserInfo {
   role: string;
@@ -87,6 +87,11 @@ export default function SuppliersPage() {
                   {supplier.email && (
                     <div className="flex items-center gap-2 text-xs text-gray-500">
                       <Mail className="h-3 w-3" />{supplier.email}
+                    </div>
+                  )}
+                  {supplier.kraPin && (
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <Hash className="h-3 w-3" />KRA: {supplier.kraPin}
                     </div>
                   )}
                 </div>

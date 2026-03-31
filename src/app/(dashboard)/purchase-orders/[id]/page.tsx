@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatKES, formatDate } from "@/lib/utils/format";
 import type { UserRole } from "@/generated/prisma";
-import { ArrowLeft, Truck, Package, Phone, MapPin } from "lucide-react";
+import { ArrowLeft, Truck, Package, Phone, MapPin, Printer } from "lucide-react";
 
 interface UserInfo {
   id: string;
@@ -86,6 +86,13 @@ export default function PurchaseOrderDetailPage() {
 
   const isDriver = user?.role === "DRIVER" || user?.role === "CO_DRIVER";
   const canManage = user?.role === "PROJECT_MANAGER" || user?.role === "CEO";
+  // Drivers see no financial data — only item name, qty, unit, supplier name, supplier phone
+  const showFinancials = !isDriver;
+
+  const items = po.items || [];
+  const grandTotal = items.reduce((sum: number, item: any) => {
+    return sum + Number(item.qtyOrdered) * Number(item.unitPrice || 0);
+  }, 0);
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -107,6 +114,10 @@ export default function PurchaseOrderDetailPage() {
             </p>
           </div>
         </div>
+        <Button variant="outline" size="sm" onClick={() => window.print()} className="print:hidden">
+          <Printer className="mr-1 h-4 w-4" />
+          Print
+        </Button>
       </div>
 
       {error && (
@@ -114,7 +125,7 @@ export default function PurchaseOrderDetailPage() {
       )}
 
       {/* Status Actions */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap print:hidden">
         {po.status === "CREATED" && canManage && (
           <Button size="sm" onClick={() => updateStatus("SENT")} disabled={updating}>
             Mark as Sent
@@ -215,7 +226,7 @@ export default function PurchaseOrderDetailPage() {
                   <dd>{formatDate(new Date(po.collectionDate))}</dd>
                 </div>
               )}
-              {po.totalAmount !== undefined && (
+              {showFinancials && po.totalAmount !== undefined && (
                 <div className="flex justify-between">
                   <dt className="text-gray-500">Total</dt>
                   <dd className="font-bold text-lg">{formatKES(Number(po.totalAmount))}</dd>
@@ -229,7 +240,7 @@ export default function PurchaseOrderDetailPage() {
       {/* Items Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Items ({po.items?.length || 0})</CardTitle>
+          <CardTitle className="text-base">Items ({items.length || 0})</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -239,16 +250,23 @@ export default function PurchaseOrderDetailPage() {
                   <th className="px-3 py-2 font-medium text-gray-600">Item</th>
                   <th className="px-3 py-2 font-medium text-gray-600">Unit</th>
                   <th className="px-3 py-2 font-medium text-gray-600 text-right">Qty</th>
-                  {po.totalAmount !== undefined && (
+                  {/* Driver sees supplier name + phone, not price */}
+                  {isDriver ? (
                     <>
-                      <th className="px-3 py-2 font-medium text-gray-600 text-right">Price</th>
+                      <th className="px-3 py-2 font-medium text-gray-600">Supplier</th>
+                      <th className="px-3 py-2 font-medium text-gray-600">Supplier Phone</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="px-3 py-2 font-medium text-gray-600">Supplier</th>
+                      <th className="px-3 py-2 font-medium text-gray-600 text-right">Unit Price</th>
                       <th className="px-3 py-2 font-medium text-gray-600 text-right">Total</th>
                     </>
                   )}
                 </tr>
               </thead>
               <tbody>
-                {(po.items || []).map((item: any) => (
+                {items.map((item: any) => (
                   <tr key={item.id} className="border-b hover:bg-gray-50">
                     <td className="px-3 py-2">
                       <span className="font-medium">{item.requisitionItem?.itemName || "Item"}</span>
@@ -258,21 +276,61 @@ export default function PurchaseOrderDetailPage() {
                     </td>
                     <td className="px-3 py-2 text-gray-600">{item.requisitionItem?.unit || "-"}</td>
                     <td className="px-3 py-2 text-right">{Number(item.qtyOrdered)}</td>
-                    {item.unitPrice !== undefined && (
+                    {isDriver ? (
                       <>
-                        <td className="px-3 py-2 text-right">{formatKES(Number(item.unitPrice))}</td>
+                        <td className="px-3 py-2 text-gray-700">
+                          {po.supplier?.name || "—"}
+                        </td>
+                        <td className="px-3 py-2">
+                          {po.supplier?.phone ? (
+                            <a href={`tel:${po.supplier.phone}`} className="text-primary-600 hover:underline flex items-center gap-1">
+                              <Phone className="h-3 w-3" />{po.supplier.phone}
+                            </a>
+                          ) : "—"}
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-3 py-2 text-gray-700">
+                          {po.supplier?.name || "—"}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {item.unitPrice ? formatKES(Number(item.unitPrice)) : "—"}
+                        </td>
                         <td className="px-3 py-2 text-right font-medium">
-                          {formatKES(Number(item.qtyOrdered) * Number(item.unitPrice))}
+                          {item.unitPrice
+                            ? formatKES(Number(item.qtyOrdered) * Number(item.unitPrice))
+                            : "—"}
                         </td>
                       </>
                     )}
                   </tr>
                 ))}
               </tbody>
+              {showFinancials && grandTotal > 0 && (
+                <tfoot>
+                  <tr className="border-t-2 bg-gray-50">
+                    <td colSpan={isDriver ? 4 : 5} className="px-3 py-2 text-right font-semibold text-gray-700">
+                      Grand Total
+                    </td>
+                    <td className="px-3 py-2 text-right font-bold text-gray-900">
+                      {formatKES(grandTotal)}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </CardContent>
       </Card>
+
+      {/* Print styles */}
+      <style jsx global>{`
+        @media print {
+          .print\\:hidden { display: none !important; }
+          body { font-size: 12px; }
+        }
+      `}</style>
     </div>
   );
   /* eslint-enable @typescript-eslint/no-explicit-any */

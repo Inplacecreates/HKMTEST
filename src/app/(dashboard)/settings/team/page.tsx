@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ROLE_LABELS } from "@/lib/utils/constants";
+import { getPermissions } from "@/lib/auth/permissions";
 import type { UserRole } from "@/generated/prisma";
 import {
   Users, Plus, Search, Pencil, X, Check,
@@ -23,6 +24,7 @@ interface TeamMember {
   role: UserRole;
   phone: string | null;
   isActive: boolean;
+  approvalLimit: number | string | null;
   createdAt: string;
 }
 
@@ -48,7 +50,54 @@ const ROLE_DESCRIPTIONS: Record<string, string> = {
   SUBCONTRACTOR: "Requisitions (create for their scope), view their assigned items only.",
 };
 
-const EMPTY_FORM = { fullName: "", email: "", role: "SITE_MANAGER" as UserRole, phone: "" };
+const PERMISSION_LABELS: Record<string, string> = {
+  "projects:read": "View Projects",
+  "projects:create": "Create Projects",
+  "projects:update": "Edit Projects",
+  "projects:delete": "Delete Projects",
+  "sites:read": "View Sites",
+  "sites:create": "Create Sites",
+  "sites:update": "Edit Sites",
+  "requisitions:read": "View Requisitions",
+  "requisitions:create": "Create Requisitions",
+  "requisitions:price": "Price Requisitions",
+  "requisitions:approve": "Approve Requisitions",
+  "requisitions:cancel": "Cancel Requisitions",
+  "purchase_orders:read": "View Purchase Orders",
+  "purchase_orders:create": "Create Purchase Orders",
+  "purchase_orders:assign_driver": "Assign Drivers to PO",
+  "purchase_orders:mark_collected": "Mark PO Collected",
+  "deliveries:verify": "Verify Deliveries",
+  "deliveries:report_discrepancy": "Report Discrepancies",
+  "deliveries:resolve_discrepancy": "Resolve Discrepancies",
+  "documents:read": "View Documents",
+  "documents:upload": "Upload Documents",
+  "budgets:read": "View Budgets",
+  "budgets:manage": "Manage Budgets",
+  "budgets:allocate_wallet": "Allocate Wallet",
+  "payments:read": "View Payments",
+  "payments:record": "Record Payments",
+  "suppliers:read": "View Suppliers",
+  "suppliers:manage": "Manage Suppliers",
+  "inventory:read": "View Inventory",
+  "inventory:manage": "Manage Inventory",
+  "snag_items:read": "View Snag Items",
+  "snag_items:create": "Create Snag Items",
+  "snag_items:manage": "Manage Snag Items",
+  "users:read": "View Team Members",
+  "users:manage": "Manage Team Members",
+  "settings:manage": "Manage Settings",
+  "reports:read": "View Reports",
+  "analytics:read": "View Analytics",
+};
+
+const EMPTY_FORM = {
+  fullName: "",
+  email: "",
+  role: "SITE_MANAGER" as UserRole,
+  phone: "",
+  approvalLimit: "30000",
+};
 
 export default function TeamPage() {
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -60,6 +109,7 @@ export default function TeamPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [permissionsMemberId, setPermissionsMemberId] = useState<string | null>(null);
 
   const loadMembers = useCallback(async () => {
     setLoading(true);
@@ -84,13 +134,21 @@ export default function TeamPage() {
     setForm(EMPTY_FORM);
     setFormError("");
     setShowForm(true);
+    setPermissionsMemberId(null);
   }
 
   function openEdit(member: TeamMember) {
     setEditingId(member.id);
-    setForm({ fullName: member.fullName, email: member.email, role: member.role, phone: member.phone ?? "" });
+    setForm({
+      fullName: member.fullName,
+      email: member.email,
+      role: member.role,
+      phone: member.phone ?? "",
+      approvalLimit: member.approvalLimit != null ? String(Number(member.approvalLimit)) : "30000",
+    });
     setFormError("");
     setShowForm(true);
+    setPermissionsMemberId(null);
   }
 
   async function handleSave() {
@@ -101,16 +159,25 @@ export default function TeamPage() {
     setSaving(true);
     setFormError("");
     try {
+      const payload: Record<string, unknown> = {
+        fullName: form.fullName,
+        role: form.role,
+        phone: form.phone || null,
+      };
+      if (form.role === "PROJECT_MANAGER" || form.role === "CEO") {
+        payload.approvalLimit = parseFloat(form.approvalLimit) || 30000;
+      }
+
       const res = editingId
         ? await fetch(`/api/users/${editingId}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fullName: form.fullName, role: form.role, phone: form.phone || null }),
+            body: JSON.stringify(payload),
           })
         : await fetch("/api/users", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(form),
+            body: JSON.stringify({ ...form, approvalLimit: undefined }),
           });
 
       if (!res.ok) {
@@ -133,6 +200,13 @@ export default function TeamPage() {
   }
 
   const activeCount = members.filter((m) => m.isActive).length;
+
+  const permissionsMember = permissionsMemberId
+    ? members.find((m) => m.id === permissionsMemberId)
+    : null;
+  const memberPermissions = permissionsMember
+    ? new Set(getPermissions(permissionsMember.role))
+    : null;
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -220,6 +294,24 @@ export default function TeamPage() {
                   ))}
                 </Select>
               </div>
+
+              {/* Approval Limit — show for PM and CEO */}
+              {(form.role === "PROJECT_MANAGER" || form.role === "CEO") && (
+                <div>
+                  <Label>Approval Limit (KES)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={form.approvalLimit}
+                    onChange={(e) => setForm({ ...form, approvalLimit: e.target.value })}
+                    placeholder="30000"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Requisitions above this value require CEO approval.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Role description */}
@@ -241,6 +333,48 @@ export default function TeamPage() {
                 <Check className="mr-1 h-4 w-4" />
                 {saving ? "Saving…" : editingId ? "Save Changes" : "Send Invite"}
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Permissions Panel */}
+      {permissionsMember && memberPermissions && (
+        <Card className="border-purple-200">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Shield className="h-4 w-4 text-purple-600" />
+                Permissions — {permissionsMember.fullName} ({ROLE_LABELS[permissionsMember.role]})
+              </CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => setPermissionsMemberId(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Permissions are role-based. The checkmarks below show what this role can access.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+              {Object.entries(PERMISSION_LABELS).map(([perm, label]) => {
+                const granted = memberPermissions.has(perm as never);
+                return (
+                  <div
+                    key={perm}
+                    className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs ${
+                      granted ? "bg-green-50 text-green-800" : "bg-gray-50 text-gray-400"
+                    }`}
+                  >
+                    <span className={`h-3.5 w-3.5 rounded-full border flex-shrink-0 flex items-center justify-center text-[10px] ${
+                      granted ? "bg-green-500 border-green-500 text-white" : "border-gray-300"
+                    }`}>
+                      {granted ? "✓" : ""}
+                    </span>
+                    {label}
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -296,6 +430,11 @@ export default function TeamPage() {
                       {!member.isActive && (
                         <Badge variant="outline" className="text-xs text-gray-400 border-gray-200">Inactive</Badge>
                       )}
+                      {(member.role === "PROJECT_MANAGER" || member.role === "CEO") && member.approvalLimit != null && (
+                        <span className="text-xs text-gray-400">
+                          Limit: KES {Number(member.approvalLimit).toLocaleString()}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
                       {member.email && (
@@ -315,6 +454,15 @@ export default function TeamPage() {
                   <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${ROLE_COLORS[member.role] ?? "bg-gray-100 text-gray-700"}`}>
                     {ROLE_LABELS[member.role] ?? member.role}
                   </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPermissionsMemberId(permissionsMemberId === member.id ? null : member.id)}
+                    className="h-7 w-7 p-0"
+                    title="View permissions"
+                  >
+                    <Shield className="h-3.5 w-3.5" />
+                  </Button>
                   <Button variant="ghost" size="sm" onClick={() => openEdit(member)} className="h-7 w-7 p-0">
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>

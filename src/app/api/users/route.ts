@@ -18,6 +18,7 @@ export async function GET() {
         role: true,
         phone: true,
         isActive: true,
+        approvalLimit: true,
         createdAt: true,
       },
     });

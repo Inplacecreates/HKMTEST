@@ -334,7 +334,25 @@ function ToolsStoreTab() {
     CHECKED_OUT: "bg-blue-100 text-blue-700",
     IN_SERVICE: "bg-amber-100 text-amber-700",
     RETIRED: "bg-gray-100 text-gray-500",
+    DECOMMISSIONED: "bg-red-100 text-red-400",
   };
+
+  const [retireToolId, setRetireToolId] = useState<string | null>(null);
+  const [retiring, setRetiring] = useState(false);
+
+  async function handleRetire() {
+    if (!retireToolId) return;
+    setRetiring(true);
+    try {
+      await fetch(`/api/tools/${retireToolId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "DECOMMISSIONED" }),
+      });
+      setRetireToolId(null);
+      loadTools();
+    } catch { /* ignore */ } finally { setRetiring(false); }
+  }
 
   const summaryByStatus = tools.reduce((acc, t) => {
     acc[t.status] = (acc[t.status] ?? 0) + 1;
@@ -344,12 +362,13 @@ function ToolsStoreTab() {
   return (
     <div className="space-y-4">
       {/* Summary */}
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-5">
         {[
           { key: "AVAILABLE", label: "Available", icon: CheckCircle2, color: "text-green-600" },
           { key: "CHECKED_OUT", label: "Checked Out", icon: Hammer, color: "text-blue-600" },
           { key: "IN_SERVICE", label: "In Service", icon: Wrench, color: "text-amber-600" },
           { key: "RETIRED", label: "Retired", icon: Clock, color: "text-gray-400" },
+          { key: "DECOMMISSIONED", label: "Decommissioned", icon: Clock, color: "text-red-400" },
         ].map(({ key, label, icon: Icon, color }) => (
           <Card key={key}>
             <CardContent className="pt-3">
@@ -474,6 +493,23 @@ function ToolsStoreTab() {
         </Card>
       )}
 
+      {/* Retire confirmation */}
+      {retireToolId && (
+        <Card className="border-red-200 bg-red-50/20">
+          <CardContent className="pt-4">
+            <p className="text-sm font-medium text-red-700">
+              Mark this tool as decommissioned? It will be moved to the bottom of the list with a Decommissioned badge.
+            </p>
+            <div className="mt-3 flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setRetireToolId(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={handleRetire} disabled={retiring}>
+                {retiring ? "Decommissioning…" : "Confirm Decommission"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Tools table */}
       {loading ? (
         <div className="space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 w-full rounded-lg" />)}</div>
@@ -494,14 +530,20 @@ function ToolsStoreTab() {
               </thead>
               <tbody>
                 {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                {tools.map((tool: any) => {
+                {[...tools.filter((t: any) => t.status !== "DECOMMISSIONED"), ...tools.filter((t: any) => t.status === "DECOMMISSIONED")].map((tool: any) => {
                   const lastMove = tool.movements?.[0];
+                  const isDecommissioned = tool.status === "DECOMMISSIONED";
                   return (
-                    <tr key={tool.id} className="border-b hover:bg-gray-50">
+                    <tr key={tool.id} className={`border-b hover:bg-gray-50 ${isDecommissioned ? "opacity-50 bg-gray-50/50" : ""}`}>
                       <td className="px-4 py-3">
                         <div className="font-medium">{tool.name}</div>
                         {tool.serialNumber && (
                           <div className="text-xs text-gray-400 font-mono">{tool.serialNumber}</div>
+                        )}
+                        {isDecommissioned && (
+                          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-500 mt-1">
+                            Decommissioned
+                          </span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-gray-600">{tool.category}</td>
@@ -518,32 +560,40 @@ function ToolsStoreTab() {
                         ) : null}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex gap-1 justify-end">
-                          {tool.status === "AVAILABLE" && (
-                            <Button variant="outline" size="sm" className="h-7 text-xs"
-                              onClick={() => { setActionTool(tool); setActionType("checkout"); setCheckoutForm({ projectId: "", expectedReturn: "", condition: "GOOD" }); }}>
-                              Check Out
-                            </Button>
-                          )}
-                          {tool.status === "CHECKED_OUT" && (
-                            <Button variant="outline" size="sm" className="h-7 text-xs"
-                              onClick={() => { setActionTool(tool); setActionType("checkin"); setCheckinForm({ conditionIn: "GOOD", damageNotes: "" }); }}>
-                              Check In
-                            </Button>
-                          )}
-                          {tool.status === "AVAILABLE" && (
-                            <Button variant="outline" size="sm" className="h-7 text-xs text-amber-600"
-                              onClick={() => { setActionTool(tool); setActionType("service"); setCheckinForm({ conditionIn: "GOOD", damageNotes: "" }); }}>
-                              Service
-                            </Button>
-                          )}
-                          {tool.status === "IN_SERVICE" && (
-                            <Button variant="outline" size="sm" className="h-7 text-xs text-green-600"
-                              onClick={() => { setActionTool(tool); setActionType("checkin"); setCheckinForm({ conditionIn: "GOOD", damageNotes: "" }); }}>
-                              Mark Ready
-                            </Button>
-                          )}
-                        </div>
+                        {!isDecommissioned && (
+                          <div className="flex gap-1 justify-end">
+                            {tool.status === "AVAILABLE" && (
+                              <Button variant="outline" size="sm" className="h-7 text-xs"
+                                onClick={() => { setActionTool(tool); setActionType("checkout"); setCheckoutForm({ projectId: "", expectedReturn: "", condition: "GOOD" }); }}>
+                                Check Out
+                              </Button>
+                            )}
+                            {tool.status === "CHECKED_OUT" && (
+                              <Button variant="outline" size="sm" className="h-7 text-xs"
+                                onClick={() => { setActionTool(tool); setActionType("checkin"); setCheckinForm({ conditionIn: "GOOD", damageNotes: "" }); }}>
+                                Check In
+                              </Button>
+                            )}
+                            {tool.status === "AVAILABLE" && (
+                              <Button variant="outline" size="sm" className="h-7 text-xs text-amber-600"
+                                onClick={() => { setActionTool(tool); setActionType("service"); setCheckinForm({ conditionIn: "GOOD", damageNotes: "" }); }}>
+                                Service
+                              </Button>
+                            )}
+                            {tool.status === "IN_SERVICE" && (
+                              <Button variant="outline" size="sm" className="h-7 text-xs text-green-600"
+                                onClick={() => { setActionTool(tool); setActionType("checkin"); setCheckinForm({ conditionIn: "GOOD", damageNotes: "" }); }}>
+                                Mark Ready
+                              </Button>
+                            )}
+                            {(tool.status === "AVAILABLE" || tool.status === "RETIRED") && (
+                              <Button variant="outline" size="sm" className="h-7 text-xs text-red-500"
+                                onClick={() => setRetireToolId(tool.id)}>
+                                Retire
+                              </Button>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );

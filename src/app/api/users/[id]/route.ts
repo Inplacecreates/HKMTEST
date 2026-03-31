@@ -25,9 +25,10 @@ export async function PATCH(
         ...(body.role !== undefined ? { role: body.role } : {}),
         ...(body.phone !== undefined ? { phone: body.phone } : {}),
         ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
+        ...(body.approvalLimit !== undefined ? { approvalLimit: body.approvalLimit } : {}),
       },
       select: {
-        id: true, fullName: true, email: true, role: true, phone: true, isActive: true, createdAt: true,
+        id: true, fullName: true, email: true, role: true, phone: true, isActive: true, approvalLimit: true, createdAt: true,
       },
     });
 

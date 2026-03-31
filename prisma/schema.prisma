@@ -57,6 +57,7 @@ model User {
   role            UserRole
   avatarUrl       String?  @map("avatar_url")
   isActive        Boolean  @default(true) @map("is_active")
+  approvalLimit   Decimal  @default(30000) @map("approval_limit") @db.Decimal(14, 2)
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -755,6 +756,7 @@ enum ToolStatus {
   CHECKED_OUT
   IN_SERVICE
   RETIRED
+  DECOMMISSIONED
 }
 
 enum ToolCondition {
