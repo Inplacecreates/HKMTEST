@@ -18,6 +18,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [redirecting, setRedirecting] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -28,10 +29,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           const data = await res.json();
           setUser(data);
         } else {
+          setRedirecting(true);
           router.push("/login");
+          return;
         }
       } catch {
+        setRedirecting(true);
         router.push("/login");
+        return;
       } finally {
         setLoading(false);
       }
@@ -57,6 +62,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
+  if (redirecting) return (
+    <div className="flex h-screen items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+    </div>
+  );
   if (!user) return null;
 
   return (
